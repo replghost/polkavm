@@ -118,6 +118,15 @@ fn get_native_page_size() -> usize {
     }
 }
 
+fn test_module_config() -> ModuleConfig {
+    let mut config = ModuleConfig::new();
+    let native = get_native_page_size() as u32;
+    if native > config.page_size {
+        config.set_page_size(native);
+    }
+    config
+}
+
 #[track_caller]
 fn assert_out_of_range_access<T>(result: Result<T, MemoryAccessError>, expected_address: u32, expected_length: u32) {
     match result {
@@ -332,7 +341,7 @@ fn basic_test(config: Config) {
     let _ = env_logger::try_init();
     let blob = basic_test_blob();
     let engine = Engine::new(&config).unwrap();
-    let module = Module::from_blob(&engine, &Default::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let mut linker: Linker<State, MemoryAccessError> = Linker::new();
 
     #[derive(Default)]
@@ -362,7 +371,7 @@ fn fallback_hostcall_handler_works(config: Config) {
     let _ = env_logger::try_init();
     let blob = basic_test_blob();
     let engine = Engine::new(&config).unwrap();
-    let module = Module::from_blob(&engine, &Default::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let mut linker = Linker::new();
 
     linker.define_fallback(move |caller: Caller<()>, num: u32| -> Result<(), ()> {
@@ -395,7 +404,7 @@ fn step_tracing_basic(engine_config: Config) {
     let _ = env_logger::try_init();
     let blob = basic_test_blob();
     let engine = Engine::new(&engine_config).unwrap();
-    let mut config = ModuleConfig::new();
+    let mut config = test_module_config();
     config.set_step_tracing(true);
     let code_length = blob.code().len() as u32;
 
@@ -507,7 +516,7 @@ fn reclaim_cache_memory(config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let list: Vec<_> = module.blob().instructions().collect();
 
     let mut instance = module.instantiate().unwrap();
@@ -592,7 +601,7 @@ fn bounded_interpreter_cache(config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let exports: Vec<_> = module.exports().map(|export| export.program_counter()).collect();
 
     let mut instance = module.instantiate().unwrap();
@@ -676,7 +685,7 @@ fn bounded_interpreter_cache(config: Config) {
 fn step_tracing_invalid_store(engine_config: Config) {
     let _ = env_logger::try_init();
     let engine = Engine::new(&engine_config).unwrap();
-    let mut config = ModuleConfig::new();
+    let mut config = test_module_config();
     config.set_step_tracing(true);
 
     let mut builder = ProgramBlobBuilder::new(InstructionSetKind::Latest32);
@@ -696,7 +705,7 @@ fn step_tracing_invalid_store(engine_config: Config) {
 fn step_tracing_invalid_load(engine_config: Config) {
     let _ = env_logger::try_init();
     let engine = Engine::new(&engine_config).unwrap();
-    let mut config = ModuleConfig::new();
+    let mut config = test_module_config();
     config.set_step_tracing(true);
 
     let mut builder = ProgramBlobBuilder::new(InstructionSetKind::Latest32);
@@ -716,7 +725,7 @@ fn step_tracing_invalid_load(engine_config: Config) {
 fn step_tracing_out_of_gas(engine_config: Config) {
     let _ = env_logger::try_init();
     let engine = Engine::new(&engine_config).unwrap();
-    let mut config = ModuleConfig::new();
+    let mut config = test_module_config();
     config.set_step_tracing(true);
     config.set_gas_metering(Some(GasMeteringKind::Sync));
 
@@ -821,7 +830,7 @@ fn zero_memory(engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let offsets: Vec<_> = module.blob().instructions().map(|inst| inst.offset).collect();
 
     let mut instance = module.instantiate().unwrap();
@@ -864,7 +873,7 @@ fn dynamic_jump_to_null(engine_config: Config) {
         builder.set_code(&code, &[]);
 
         let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-        let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+        let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
         let offsets: Vec<_> = module.blob().instructions().map(|inst| inst.offset).collect();
 
         let mut instance = module.instantiate().unwrap();
@@ -883,7 +892,7 @@ fn simple_test(engine_config: Config) {
     builder.set_code(&[asm::load_imm(A0, 0x1234), asm::add_imm_32(A1, A1, 100), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let offsets: Vec<_> = module.blob().instructions().map(|inst| inst.offset).collect();
 
     let mut instance = module.instantiate().unwrap();
@@ -903,7 +912,7 @@ fn out_of_range_execution(engine_config: Config) {
     builder.set_code(&[asm::load_imm(A0, 1), asm::load_imm(A0, 2), asm::branch_eq_imm(RA, 0, 0)], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::new(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let next_offsets: Vec<_> = module.blob().instructions().map(|inst| inst.next_offset).collect();
 
     let mut instance = module.instantiate().unwrap();
@@ -930,7 +939,7 @@ fn jump_into_middle_of_basic_block_from_outside(engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config: ModuleConfig = ModuleConfig::new();
+    let mut module_config: ModuleConfig = test_module_config();
     module_config.set_page_size(get_native_page_size().try_into().unwrap());
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -982,7 +991,7 @@ fn jump_into_middle_of_basic_block_from_within(engine_config: Config) {
 
     // First, sanity check: does this program execute correctly as-is?
     let instructions = {
-        let mut module_config: ModuleConfig = ModuleConfig::new();
+        let mut module_config: ModuleConfig = test_module_config();
         module_config.set_page_size(get_native_page_size().try_into().unwrap());
         module_config.set_gas_metering(Some(GasMeteringKind::Sync));
         let module = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -1021,7 +1030,7 @@ fn jump_into_middle_of_basic_block_from_within(engine_config: Config) {
     assert_eq!(&instructions[1..], &new_instructions[1..]);
     assert_eq!(new_instructions[0].kind, asm::jump(new_instructions[2].offset.0));
 
-    let mut module_config: ModuleConfig = ModuleConfig::new();
+    let mut module_config: ModuleConfig = test_module_config();
     module_config.set_page_size(get_native_page_size().try_into().unwrap());
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -1057,7 +1066,7 @@ fn jump_after_invalid_instruction_from_within(engine_config: Config) {
         }
     );
 
-    let mut module_config: ModuleConfig = ModuleConfig::new();
+    let mut module_config: ModuleConfig = test_module_config();
     module_config.set_page_size(get_native_page_size().try_into().unwrap());
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -1088,7 +1097,7 @@ fn jump_indirect_simple(engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &Default::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
 
     let mut instance = module.instantiate().unwrap();
     instance.set_reg(Reg::RA, crate::RETURN_TO_HOST);
@@ -1125,7 +1134,7 @@ fn jump_indirect_big_table(engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let module = Module::from_blob(&engine, &Default::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
 
     let mut instance = module.instantiate().unwrap();
     instance.set_reg(Reg::RA, crate::RETURN_TO_HOST);
@@ -1155,7 +1164,7 @@ fn dynamic_paging_basic(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1259,7 +1268,7 @@ fn dynamic_paging_freeing_pages(mut engine_config: Config) {
     builder.set_code(&[asm::load_i32(Reg::A0, 0x10000), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1303,7 +1312,7 @@ fn dynamic_paging_protect_memory(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1368,7 +1377,7 @@ fn dynamic_paging_stress_test(mut engine_config: Config) {
             let thread = std::thread::spawn(move || {
                 let engine = Engine::new(&engine_config).unwrap();
                 let page_size = get_native_page_size() as u32;
-                let mut module_config = ModuleConfig::new();
+                let mut module_config = test_module_config();
                 module_config.set_page_size(page_size);
                 module_config.set_dynamic_paging(true);
                 let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1411,7 +1420,7 @@ fn dynamic_paging_initialize_multiple_pages(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1448,7 +1457,7 @@ fn dynamic_paging_preinitialize_pages(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1475,7 +1484,7 @@ fn dynamic_paging_reading_does_not_resolve_segfaults(mut engine_config: Config) 
     builder.set_code(&[asm::load_i32(Reg::A0, 0x10000), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1504,7 +1513,7 @@ fn dynamic_paging_read_at_page_boundary(mut engine_config: Config) {
     builder.set_code(&[asm::load_i32(Reg::A0, 0x10ffe), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1542,7 +1551,7 @@ fn dynamic_paging_read_at_top_of_address_space(mut engine_config: Config) {
     builder.set_code(&[asm::load_i32(Reg::A0, 0xffffffff), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1574,7 +1583,7 @@ fn dynamic_paging_read_with_upper_bits_set(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1599,7 +1608,7 @@ fn dynamic_paging_read_at_bottom_of_address_space(mut engine_config: Config) {
     builder.set_code(&[asm::load_i32(Reg::A0, 1), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1623,7 +1632,7 @@ fn dynamic_paging_read_memory_which_is_not_paged_in(mut engine_config: Config) {
     builder.set_code(&[asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1651,7 +1660,7 @@ fn dynamic_paging_write_at_page_boundary_with_no_pages(mut engine_config: Config
     builder.set_code(&[asm::store_imm_u32(0x10ffe, 0x12345678), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1689,7 +1698,7 @@ fn dynamic_paging_write_at_page_boundary_with_first_page(mut engine_config: Conf
     builder.set_code(&[asm::store_imm_u32(0x10ffe, 0x12345678), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1725,7 +1734,7 @@ fn dynamic_paging_write_at_page_boundary_with_second_page(mut engine_config: Con
     builder.set_code(&[asm::store_imm_u32(0x10ffe, 0x12345678), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1761,7 +1770,7 @@ fn dynamic_paging_change_written_value_and_address_during_segfault(mut engine_co
     builder.set_code(&[asm::store_indirect_u32(Reg::A0, Reg::A1, 0), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1795,7 +1804,7 @@ fn dynamic_paging_cancel_segfault_by_changing_address(mut engine_config: Config)
     builder.set_code(&[asm::store_imm_indirect_u32(Reg::A0, 0, 0x12345678), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1830,7 +1839,7 @@ fn dynamic_paging_worker_recycle_turn_dynamic_paging_on_and_off(mut engine_confi
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
 
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module_dynamic = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -1902,14 +1911,14 @@ fn dynamic_paging_worker_recycle_during_segfault(mut engine_config: Config) {
     };
 
     let module_1 = {
-        let mut module_config = ModuleConfig::new();
+        let mut module_config = test_module_config();
         module_config.set_page_size(page_size);
         module_config.set_dynamic_paging(true);
         Module::from_blob(&engine, &module_config, blob_1).unwrap()
     };
 
     let module_2 = {
-        let mut module_config = ModuleConfig::new();
+        let mut module_config = test_module_config();
         module_config.set_page_size(page_size);
         module_config.set_dynamic_paging(false);
         Module::from_blob(&engine, &module_config, blob_2).unwrap()
@@ -1948,7 +1957,7 @@ fn dynamic_paging_change_program_counter_during_segfault(mut engine_config: Conf
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -1985,7 +1994,7 @@ fn dynamic_paging_run_out_of_gas(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
@@ -2027,7 +2036,7 @@ fn dynamic_paging_receive_from_another_thread_and_run(mut engine_config: Config)
         );
 
         let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-        let mut module_config = ModuleConfig::new();
+        let mut module_config = test_module_config();
         module_config.set_page_size(page_size);
         module_config.set_dynamic_paging(true);
         module_config.set_gas_metering(Some(GasMeteringKind::Sync));
@@ -2072,7 +2081,7 @@ fn dynamic_paging_instantiate_on_another_thread(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
@@ -2140,7 +2149,7 @@ fn dynamic_paging_parallel_page_fault_stress_test(mut engine_config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
@@ -2427,7 +2436,7 @@ fn pinky_impl(config: Config, is_64_bit: bool) {
     let blob = get_blob(get_test_program(TestProgram::Pinky, is_64_bit));
 
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     if config.allow_dynamic_paging() {
         module_config.set_dynamic_paging(true);
     }
@@ -2477,7 +2486,7 @@ fn dispatch_table(config: Config) {
     builder.set_code(&code, &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
     let offsets: Vec<_> = module.blob().instructions().map(|inst| inst.offset).collect();
@@ -2521,7 +2530,7 @@ fn fallthrough_into_already_compiled_block(config: Config) {
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let offsets: Vec<_> = blob.instructions().map(|inst| inst.offset).collect();
 
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -2557,7 +2566,7 @@ fn implicit_trap_after_fallthrough(config: Config) {
     builder.set_code(&[asm::fallthrough()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
 
@@ -2592,7 +2601,7 @@ fn invalid_instruction_after_fallthrough(engine_config: Config) {
         }
     );
 
-    let mut module_config: ModuleConfig = ModuleConfig::new();
+    let mut module_config: ModuleConfig = test_module_config();
     module_config.set_page_size(get_native_page_size().try_into().unwrap());
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -2624,7 +2633,7 @@ fn invalid_branch_target(engine_config: Config) {
         &[],
     );
 
-    let mut module_config: ModuleConfig = ModuleConfig::new();
+    let mut module_config: ModuleConfig = test_module_config();
     module_config.set_page_size(get_native_page_size().try_into().unwrap());
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
@@ -2707,7 +2716,7 @@ fn aux_data_works(config: Config) {
     );
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_aux_data_size(1);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -2739,7 +2748,7 @@ fn aux_data_accessible_area(config: Config) {
     builder.set_code(&[asm::load_indirect_i32(Reg::A1, Reg::A0, 0), asm::ret()], &[]);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_aux_data_size(2_u32.pow(24));
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -2918,7 +2927,7 @@ fn access_memory_from_host(config: Config) {
     builder.set_stack_size(1);
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_aux_data_size(1);
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3004,7 +3013,7 @@ fn sbrk_knob_works(config: Config) {
 
         let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
 
-        let mut module_config: ModuleConfig = ModuleConfig::new();
+        let mut module_config: ModuleConfig = test_module_config();
         module_config.set_page_size(page_size);
         module_config.set_gas_metering(Some(GasMeteringKind::Sync));
         let module = Module::from_blob(&engine, &module_config, blob.clone()).unwrap();
@@ -3039,7 +3048,7 @@ impl TestInstance {
         let blob = get_blob_impl(optimize, false, elf);
 
         let engine = Engine::new(config).unwrap();
-        let module = Module::from_blob(&engine, &Default::default(), blob).unwrap();
+        let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
         let mut linker = Linker::new();
         linker
             .define_typed("multiply_by_2", |_caller: Caller<()>, value: u32| -> u32 { value * 2 })
@@ -3497,7 +3506,7 @@ fn basic_gas_metering(config: Config, gas_metering_kind: GasMeteringKind) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(gas_metering_kind));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3646,7 +3655,7 @@ fn per_instruction_gas_metering() {
     config.set_backend(Some(crate::BackendKind::Interpreter));
 
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_per_instruction_metering(true);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
@@ -3690,7 +3699,7 @@ fn consume_gas_in_host_function(config: Config, gas_metering_kind: GasMeteringKi
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(gas_metering_kind));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3755,7 +3764,7 @@ fn gas_metering_with_more_than_one_basic_block(config: Config) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3787,7 +3796,7 @@ fn gas_metering_with_implicit_trap(config: Config) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3822,7 +3831,7 @@ fn gas_gets_charged_when_jumping_in_the_middle_of_a_basic_block(config: Config) 
     let offsets: Vec<_> = blob.instructions().map(|inst| inst.offset).collect();
 
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -3901,7 +3910,7 @@ fn trapping_preserves_all_registers_normal_trap(config: Config) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let mut instance = module.instantiate().unwrap();
     instance.set_next_program_counter(ProgramCounter(0));
     for (index, reg) in Reg::ALL.into_iter().enumerate() {
@@ -3922,7 +3931,7 @@ fn trapping_preserves_all_registers_segfault(config: Config) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let module = Module::from_blob(&engine, &ModuleConfig::default(), blob).unwrap();
+    let module = Module::from_blob(&engine, &test_module_config(), blob).unwrap();
     let mut instance = module.instantiate().unwrap();
     instance.set_next_program_counter(ProgramCounter(0));
     for (index, reg) in Reg::ALL.into_iter().enumerate() {
@@ -3946,7 +3955,7 @@ fn memset_basic(config: Config) {
 
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
-    let mut module_config = ModuleConfig::default();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
 
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
@@ -4074,7 +4083,7 @@ fn memset_with_dynamic_paging(mut config: Config) {
     let blob = ProgramBlob::parse(builder.into_vec().unwrap().into()).unwrap();
     let engine = Engine::new(&config).unwrap();
     let page_size = get_native_page_size() as u32;
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_page_size(page_size);
     module_config.set_dynamic_paging(true);
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
@@ -4225,7 +4234,7 @@ fn spawn_stress_test(mut config: Config) {
         config.set_worker_count(worker_count);
         let engine = Engine::new(&config).unwrap();
 
-        let module = Module::from_blob(&engine, &ModuleConfig::default(), blob.clone()).unwrap();
+        let module = Module::from_blob(&engine, &test_module_config(), blob.clone()).unwrap();
         let linker: Linker = Linker::new();
         let instance_pre = linker.instantiate_pre(&module).unwrap();
 
@@ -4279,16 +4288,16 @@ fn module_cache(mut config: Config) {
     config.set_lru_cache_size(0);
     let engine_without_cache = Engine::new(&config).unwrap();
 
-    assert!(Module::from_cache(&engine_with_cache, &Default::default(), &blob).is_none());
-    let module_with_cache_1 = Module::from_blob(&engine_with_cache, &Default::default(), blob.clone()).unwrap();
-    assert!(Module::from_cache(&engine_with_cache, &Default::default(), &blob).is_some());
-    let module_with_cache_2 = Module::from_blob(&engine_with_cache, &Default::default(), blob.clone()).unwrap();
-    assert!(Module::from_cache(&engine_with_cache, &Default::default(), &blob).is_some());
+    assert!(Module::from_cache(&engine_with_cache, &test_module_config(), &blob).is_none());
+    let module_with_cache_1 = Module::from_blob(&engine_with_cache, &test_module_config(), blob.clone()).unwrap();
+    assert!(Module::from_cache(&engine_with_cache, &test_module_config(), &blob).is_some());
+    let module_with_cache_2 = Module::from_blob(&engine_with_cache, &test_module_config(), blob.clone()).unwrap();
+    assert!(Module::from_cache(&engine_with_cache, &test_module_config(), &blob).is_some());
 
-    assert!(Module::from_cache(&engine_without_cache, &Default::default(), &blob).is_none());
-    let module_without_cache_1 = Module::from_blob(&engine_without_cache, &Default::default(), blob.clone()).unwrap();
-    assert!(Module::from_cache(&engine_without_cache, &Default::default(), &blob).is_none());
-    let module_without_cache_2 = Module::from_blob(&engine_without_cache, &Default::default(), blob.clone()).unwrap();
+    assert!(Module::from_cache(&engine_without_cache, &test_module_config(), &blob).is_none());
+    let module_without_cache_1 = Module::from_blob(&engine_without_cache, &test_module_config(), blob.clone()).unwrap();
+    assert!(Module::from_cache(&engine_without_cache, &test_module_config(), &blob).is_none());
+    let module_without_cache_2 = Module::from_blob(&engine_without_cache, &test_module_config(), blob.clone()).unwrap();
 
     if engine_with_cache.backend() == BackendKind::Compiler {
         assert_eq!(
@@ -4302,13 +4311,13 @@ fn module_cache(mut config: Config) {
     }
 
     core::mem::drop(module_with_cache_2);
-    assert!(Module::from_cache(&engine_with_cache, &Default::default(), &blob).is_some());
+    assert!(Module::from_cache(&engine_with_cache, &test_module_config(), &blob).is_some());
     core::mem::drop(module_with_cache_1);
-    assert!(Module::from_cache(&engine_with_cache, &Default::default(), &blob).is_none());
+    assert!(Module::from_cache(&engine_with_cache, &test_module_config(), &blob).is_none());
 
-    assert!(Module::from_cache(&engine_with_lru_cache, &Default::default(), &blob).is_none());
-    Module::from_blob(&engine_with_lru_cache, &Default::default(), blob.clone()).unwrap();
-    assert!(Module::from_cache(&engine_with_lru_cache, &Default::default(), &blob).is_some());
+    assert!(Module::from_cache(&engine_with_lru_cache, &test_module_config(), &blob).is_none());
+    Module::from_blob(&engine_with_lru_cache, &test_module_config(), blob.clone()).unwrap();
+    assert!(Module::from_cache(&engine_with_lru_cache, &test_module_config(), &blob).is_some());
 }
 
 fn run_riscv_test(engine_config: Config, elf: &[u8], testnum_reg: Reg, optimize: bool) {
@@ -4323,7 +4332,7 @@ fn run_riscv_test(engine_config: Config, elf: &[u8], testnum_reg: Reg, optimize:
     let blob = ProgramBlob::parse(raw_blob.into()).unwrap();
 
     let engine = Engine::new(&engine_config).unwrap();
-    let mut module_config = ModuleConfig::new();
+    let mut module_config = test_module_config();
     module_config.set_gas_metering(Some(GasMeteringKind::Sync));
     let module = Module::from_blob(&engine, &module_config, blob).unwrap();
     let mut instance = module.instantiate().unwrap();

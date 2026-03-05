@@ -8,7 +8,7 @@
 
 #[cfg(all(
     not(miri),
-    target_arch = "x86_64",
+    any(target_arch = "x86_64", target_arch = "aarch64"),
     any(
         target_os = "linux",
         all(feature = "generic-sandbox", any(target_os = "macos", target_os = "freebsd"))
@@ -31,7 +31,7 @@ macro_rules! if_compiler_is_supported {
 
 #[cfg(not(all(
     not(miri),
-    target_arch = "x86_64",
+    any(target_arch = "x86_64", target_arch = "aarch64"),
     any(
         target_os = "linux",
         all(feature = "generic-sandbox", any(target_os = "macos", target_os = "freebsd"))
