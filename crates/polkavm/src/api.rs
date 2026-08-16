@@ -462,6 +462,7 @@ impl Module {
             .rw_data_size(blob.rw_data_size())
             .stack_size(blob.stack_size())
             .aux_data_size(config.aux_data_size())
+            .max_heap_size(config.max_heap_size())
             .build()
             .map_err(Error::from_static_str)?;
 
@@ -521,6 +522,7 @@ impl Module {
             rw_data_size: blob.rw_data_size(),
             stack_size: blob.stack_size(),
             aux_data_size: config.aux_data_size(),
+            max_heap_size: config.max_heap_size(),
         };
 
         #[allow(unused_macros)]
